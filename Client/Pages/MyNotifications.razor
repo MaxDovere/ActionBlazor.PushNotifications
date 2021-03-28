@@ -1,0 +1,51 @@
+﻿@page "/mynotifications"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using ActionBlazor.PushNotifications.Shared
+@using ActionBlazor.PushNotifications.Components
+
+@attribute [Authorize]
+@inject HttpClient Http
+@inject NotificationUsersClient notificationUsersClient
+
+<div class="main">
+    <TemplatedList IsLoading="@isLoading" Loader="@LoadNotifications" ListGroupClass="orders-list">
+        <Empty>
+            <h2>No notification placed</h2>
+            <a class="btn btn-success" href="">Notification Pushing</a>
+        </Empty>
+        <Item Context="item">
+            <div class="col">
+                <h5>@item.Notification.CreatedTime.ToLongDateString()</h5>
+            </div>
+            <div class="col">
+                Status: <strong>@item.StatusText</strong>
+            </div>
+            <div class="col flex-grow-0">
+                <a href="mynotifications/@item.Notification.NotificationId" class="btn btn-success">
+                    Track &gt;
+                </a>
+            </div>
+        </Item>
+    </TemplatedList>
+</div>
+
+@code {
+
+    public bool isLoading { get; set; } = true;
+
+    async Task<IEnumerable<NotificationWithStatus>> LoadNotifications()
+    {
+        var notificationWithStatus = Enumerable.Empty<NotificationWithStatus>();
+        try
+        {
+            await Task.Delay(NotificationWithStatus.PreparationDuration);
+            notificationWithStatus = await notificationUsersClient.GetNotifications();
+            isLoading = false;
+        }
+        catch (AccessTokenNotAvailableException ex)
+        {
+            ex.Redirect();
+        }
+        return notificationWithStatus;
+    } }

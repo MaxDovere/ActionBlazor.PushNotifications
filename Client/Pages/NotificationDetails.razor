@@ -1,0 +1,90 @@
+﻿@page "/mynotifications/{notificationId:int}"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using ActionBlazor.PushNotifications.Shared
+
+@attribute [Authorize]
+@using System.Threading
+@inject NotificationUsersClient notificationUsersClient
+@implements IDisposable
+
+<div class="main">
+    @if (invalidNotification)
+    {
+        <h2>Nope</h2>
+        <p>Sorry, this notification could not be loaded.</p> }
+    else if (notificationWithStatus == null)
+    {
+    <text>Loading...</text> }
+    else
+    {
+        <div class="track-order">
+            <div class="track-order-title">
+                <h2>
+                    Order placed @notificationWithStatus.Notification.CreatedTime.ToLongDateString()
+                </h2>
+                <p class="ml-auto mb-0">
+                    Status: <strong>@notificationWithStatus.StatusText</strong>
+                </p>
+            </div>
+        </div>
+    }
+</div>
+
+@code { 
+
+    [Parameter] public int NotificationId { get; set; }
+
+    bool invalidNotification;
+    NotificationWithStatus notificationWithStatus;
+    CancellationTokenSource pollingCancellationToken;
+
+    protected override void OnParametersSet()
+    {
+        // If we were already polling for a different order, stop doing so
+        pollingCancellationToken?.Cancel();
+
+        // Start a new poll loop
+        PollForUpdates();
+    }
+
+    private async void PollForUpdates()
+    {
+        invalidNotification = false;
+        pollingCancellationToken = new CancellationTokenSource();
+        while (!pollingCancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                notificationWithStatus = await notificationUsersClient.GetNotificationById(NotificationId);
+                StateHasChanged();
+
+                if (notificationWithStatus.IsDelivered)
+                {
+                    pollingCancellationToken.Cancel();
+                }
+                else
+                {
+                    await Task.Delay(4000);
+                }
+            }
+            catch (AccessTokenNotAvailableException ex)
+            {
+                pollingCancellationToken.Cancel();
+                ex.Redirect();
+            }
+            catch (Exception ex)
+            {
+                invalidNotification = true;
+                pollingCancellationToken.Cancel();
+                Console.Error.WriteLine(ex);
+                StateHasChanged();
+            }
+        }
+    }
+
+    void IDisposable.Dispose()
+    {
+        pollingCancellationToken?.Cancel();
+    }
+}

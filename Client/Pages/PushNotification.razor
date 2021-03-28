@@ -1,0 +1,90 @@
+﻿@page "/pushnotification"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using ActionBlazor.PushNotifications.Shared
+
+@attribute [Authorize]
+@inject HttpClient Http
+@inject NotificationUsersClient notificationUsersClient
+@inject NotificationState notificationState
+
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<div class="main">
+    @if (subscription != null)
+    {
+        <p>Current Number subscription (Id): @subscription.SubscriptionId.ToString()</p>
+    }
+    <button type="submit" @onclick="SendNotification" class="checkout-button btn btn-warning" disabled="@isSubmitting">
+        Send notification
+    </button>
+
+
+    <!--<EditForm Model="notificationState.Notification.DeliveryAddress" OnValidSubmit="SendAttention">
+        <button type="submit" class="checkout-button btn btn-warning" disabled="@isSubmitting">
+            Send attention
+        </button>
+        <div class="checkout-cols">
+            <div class="checkout-order-details">
+                <h4>Review attention</h4>-->
+                @*<AttentionReview Attention="AttentionState.Attention" />*@
+            <!--</div>
+
+            <div class="checkout-delivery-address">
+                <h4>Deliver to...</h4>
+                <AddressEditor Address="AttentionState.Attention.DeliveryAddress" />
+            </div>
+        </div>
+        <DataAnnotationsValidator />
+    </EditForm>-->
+</div>
+
+@code {
+
+    bool isSubmitting;
+
+    public SubscriptionUsers subscription { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // In the background, ask if they want to be notified about order updates
+        await RequestNotificationSubscriptionAsync();
+    }
+
+    async Task RequestNotificationSubscriptionAsync()
+    {
+        subscription = await JSRuntime.InvokeAsync<SubscriptionUsers>("blazorPushNotifications.requestSubscription");
+        if (subscription != null)
+        {
+
+            try
+            {
+                await notificationUsersClient.SubscribeToNotifications(subscription);
+            }
+            catch (AccessTokenNotAvailableException ex)
+            {
+                ex.Redirect();
+            }
+
+        }
+    }
+
+    async Task SendNotification()
+    {
+        isSubmitting = true;
+        try
+        {
+            var newNotificationId = await notificationUsersClient.SendNotification(notificationState.Notification);
+            notificationState.ResetNotification();
+
+            NavigationManager.NavigateTo($"mynotifications/{newNotificationId}");
+        }
+        catch (AccessTokenNotAvailableException ex)
+        {
+            Console.WriteLine(ex.Message);
+
+            ex.Redirect();
+        }
+    }
+}
